@@ -1,0 +1,12 @@
+[submodule "user-service"]
+	path = user-service
+	url = git@gitlab.tma.com.vn:mini-project/user-service.git
+	branch = main
+[submodule "product-service"]
+	path = product-service
+	url = git@gitlab.tma.com.vn:mini-project/product-service.git
+	branch = main
+[submodule "order-service"]
+	path = order-service
+	url = git@gitlab.tma.com.vn:mini-project/order-service.git
+	branch = main
