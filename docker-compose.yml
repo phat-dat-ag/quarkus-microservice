@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - micro-net
+
+  user-service:
+    image: npdat4/user-service:latest
+    container_name: user-service
+    ports:
+      - "8084:8080"
+      - "5005:5005"
+    depends_on:
+      - mongo
+      - jwks-service
+    networks:
+      - micro-net
+    volumes:
+      - ./keys/private/user-private.pem:/private-key/user-private.pem:ro
+    environment:
+      QUARKUS_MONGODB_CONNECTION_STRING: mongodb://mongo:27017/userdb
+      QUARKUS_MONGODB_DATABASE: userdb
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+      JWT_SIGN_KEY_LOCATION: /private-key/user-private.pem
+      SECURITY_JWKS_URL: http://jwks-service:8080/.well-known/jwks.json
+      SECURITY_INTERNAL_ISSUERS: user-service,order-service
+
+  product-service:
+    image: npdat4/product-service:latest
+    container_name: product-service
+    ports:
+      - "8085:8080"
+      - "5006:5006"
+    depends_on:
+      - mongo
+    networks:
+      - micro-net
+    environment:
+      QUARKUS_MONGODB_CONNECTION_STRING: mongodb://mongo:27017/productdb
+      QUARKUS_MONGODB_DATABASE: productdb
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+      SECURITY_JWKS_URL: http://jwks-service:8080/.well-known/jwks.json
+      SECURITY_INTERNAL_ISSUERS: user-service,order-service
+
+  order-service:
+    image: npdat4/order-service:latest
+    container_name: order-service
+    ports:
+      - "8086:8080"
+      - "5007:5007"
+    depends_on:
+      - mongo
+    networks:
+      - micro-net
+    volumes:
+      - ./keys/private/order-private.pem:/private-key/order-private.pem:ro
+    environment:
+      QUARKUS_MONGODB_CONNECTION_STRING: mongodb://mongo:27017/orderdb
+      QUARKUS_MONGODB_DATABASE: orderdb
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+      JWT_SIGN_KEY_LOCATION: /private-key/order-private.pem
+      USER_SERVICE_URL: http://user-service:8080
+      PRODUCT_SERVICE_URL: http://product-service:8080
+      REQUEST_TIME_OUT: 5
+      CONNECTION_POOL_SIZE: 10
+      SECURITY_JWKS_URL: http://jwks-service:8080/.well-known/jwks.json
+      SECURITY_INTERNAL_ISSUERS: user-service
+
+  jwks-service:
+    build: ./jwks-service
+    image: jwks-service:latest
+    container_name: jwks-service
+    ports:
+      - "8087:8080"
+    networks:
+      - micro-net
+    volumes:
+      - ./keys/public:/public-key:ro
+    environment:
+      JWKS_KEYS_MAPPING: >
+        user-service:user-key-1:/public-key/user-public.pem,
+        order-service:order-key-1:/public-key/order-public.pem
+
+  redis:
+    image: redis:7.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - micro-net
+
+volumes:
+  mongo-data:
+
+networks:
+  micro-net:
+    driver: bridge
